@@ -1,0 +1,48 @@
+name: Better Impact Induction Notifier
+
+on:
+  schedule:
+    # Runs every 30 minutes
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    # Allows manual trigger from GitHub Actions UI (useful for testing)
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+
+    # Allow the workflow to commit state.json back to the repo
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run polling script
+        env:
+          BI_API_USERNAME: ${{ secrets.BI_API_USERNAME }}
+          BI_API_PASSWORD: ${{ secrets.BI_API_PASSWORD }}
+          SMTP_HOST:       ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:       ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME:   ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD:   ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_EMAIL:    ${{ secrets.NOTIFY_EMAIL }}
+        run: python poll_better_impact.py
+
+      - name: Commit updated state
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state.json docs/
+          # Only commit if files actually changed
+          git diff --staged --quiet || git commit -m "Update state and dashboard snapshot [skip ci]"
+          git push

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Better Impact Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <div>
+                <h1>Volunteer Tracking Dashboard</h1>
+                <p class="subtitle">Live System & Workflow Monitor</p>
+            </div>
+            <div class="header-badges">
+                <div class="badge" id="api-status-badge">
+                    <span class="status-dot"></span> API: <span id="api-status-text">Checking...</span>
+                </div>
+                <div class="badge" id="email-status-badge">
+                    <span class="status-dot"></span> EMAIL: <span id="email-status-text">Checking...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Workflow Status Cards Section -->
+            <section class="metrics-section">
+                <h2 class="section-title">Workflow Status</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card accent-blue" id="card-new-apps" title="Click to view volunteers">
+                        <div class="metric-value" id="val-new-apps">0</div>
+                        <div class="metric-label">New Applications<br><small>(No Interview Outcome)</small></div>
+                    </div>
+                    <div class="metric-card accent-purple" id="card-awaiting-hr" title="Click to view volunteers">
+                        <div class="metric-value" id="val-awaiting-hr">0</div>
+                        <div class="metric-label">Awaiting HR Induction<br><small>(Passed Interview)</small></div>
+                    </div>
+                    <div class="metric-card accent-orange" id="card-awaiting-site" title="Click to view volunteers">
+                        <div class="metric-value" id="val-awaiting-site">0</div>
+                        <div class="metric-label">Awaiting Site Induction<br><small>(Passed HR Induction)</small></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Activity Section -->
+            <div class="activity-wrapper">
+                <section class="activity-section">
+                    <h2 class="section-title">Recent Updates</h2>
+                    <ul class="activity-list" id="recent-changes-list">
+                        <li><span class="loading-pulse">Waiting for data...</span></li>
+                    </ul>
+                </section>
+
+                <section class="activity-section">
+                    <h2 class="section-title">Recent Submissions</h2>
+                    <ul class="activity-list" id="recent-forms-list">
+                        <li><span class="loading-pulse">Waiting for data...</span></li>
+                    </ul>
+                </section>
+            </div>
+        </main>
+
+        <footer class="dashboard-footer">
+            <p>Last Successful Poll: <strong id="last-poll-time">--/--/---- --:--</strong></p>
+            <p class="small-text">Updates automatically every 30 minutes via GitHub Actions.</p>
+        </footer>
+    </div>
+    
+    <!-- Modal for Detailed Lists -->
+    <div id="users-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Volunteers</h3>
+                <button id="close-modal">&times;</button>
+            </div>
+            <ul id="modal-list" class="modal-list">
+                <!-- Names injected here -->
+            </ul>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
