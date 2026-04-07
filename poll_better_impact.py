@@ -78,7 +78,6 @@ def update_dashboard_json(state, now, api_ok, email_ok):
     users = state.get("users", {})
     for _, info in users.items():
         name = info.get("name", "Unknown")
-        anon_name = anonymize_name(name)
         fields = info.get("fields", {})
         reg = fields.get(REGISTRATION_FIELD_NAME, {}).get("value")
         outcome = fields.get(SUPERVISOR_FIELD_NAME, {}).get("value")
@@ -86,11 +85,11 @@ def update_dashboard_json(state, now, api_ok, email_ok):
         site = fields.get(SITE_FIELD_NAME, {}).get("value")
         
         if reg and not outcome:
-            new_apps.append(anon_name)
+            new_apps.append(name)
         if outcome == "Passed" and not hr:
-            awaiting_hr.append(anon_name)
+            awaiting_hr.append(name)
         if hr and not site:
-            awaiting_site.append(anon_name)
+            awaiting_site.append(name)
             
     dash_data = {
         "workflow_status": {
@@ -306,7 +305,7 @@ def send_daily_digest(digest_queue, stalled_workflows):
 
 # ── Stalled Workflows ─────────────────────────────────────────────────────────
 
-def check_stalled_workflows(users_state, now):
+def check_stalled_workflows(users_state, now, true_names_map=None):
     """
     Check for:
     1. Application Stalled: V1 submitted (>5 days ago), but no Interview Outcome.
@@ -315,7 +314,8 @@ def check_stalled_workflows(users_state, now):
     stalled = []
     
     for user_id, info in users_state.items():
-        name = info.get("name", "Unknown")
+        base_name = info.get("name", "Unknown")
+        name = true_names_map.get(user_id, base_name) if true_names_map else base_name
         fields = info.get("fields", {})
         
         reg_form = fields.get(REGISTRATION_FIELD_NAME, {})
@@ -387,15 +387,16 @@ def main():
         if not isinstance(user, dict):
             continue
         user_id   = str(user.get("user_id", ""))
-        full_name = (
+        raw_name = (
             f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
             or user.get("name", f"Volunteer {user_id}")
         )
+        anon_name = anonymize_name(raw_name)
 
         if not user_id:
             continue
 
-        current_users[user_id] = {"name": full_name, "fields": {}}
+        current_users[user_id] = {"name": anon_name, "fields": {}}
 
         for field_name in fields_to_monitor:
             current_value = extract_custom_field(user, field_name)
@@ -412,9 +413,10 @@ def main():
                 # We only alert on changes TO a value (not to blank) for most things, or any change?
                 # The user previously wanted "notify on any value change rather than only initial submissions".
                 if current_value:
-                    print(f"Change detected: {full_name} — {field_name}: '{previous_value}' → '{current_value}'")
+                    print(f"Change detected: {raw_name} — {field_name}: '{previous_value}' → '{current_value}'")
                     change_dict = {
-                        "volunteer_name": full_name,
+                        "user_id": user_id,
+                        "volunteer_name": anon_name,
                         "field_name": field_name,
                         "previous_value": previous_value,
                         "new_value": current_value,
@@ -423,7 +425,7 @@ def main():
                     
                     # Store stripped/anonymized version for dashboard
                     public_change = {
-                        "volunteer_name": anonymize_name(full_name),
+                        "volunteer_name": anon_name,
                         "field_name": field_name,
                         "old_value": previous_value if previous_value else "(empty)",
                         "new_value": current_value,
@@ -438,7 +440,10 @@ def main():
                         state["dashboard_activity"]["field_changes"] = state["dashboard_activity"]["field_changes"][:5]
                     
                     if field_name in IMMEDIATE_FIELDS and (not previous_value):
-                        immediate_changes.append(change_dict)
+                        immediate_changes.append({
+                            **change_dict,
+                            "volunteer_name": raw_name # Only use true name in volatile email queue
+                        })
                     else:
                         digest_queue.append(change_dict)
             else:
@@ -464,7 +469,21 @@ def main():
     # Run daily digest if it's 8 AM or later AND we haven't sent it today yet.
     if now.hour >= 8 and state.get("last_digest_date") != today_str:
         print("Evaluating stalled workflows and sending Daily Digest.")
-        stalled_workflows = check_stalled_workflows(current_users, now)
+        
+        # Hydrate true names mapping for digests
+        true_names_map = {}
+        for v in volunteers:
+            uid = str(v.get("user_id", ""))
+            fname = f"{v.get('first_name', '')} {v.get('last_name', '')}".strip() or v.get("name", "Unknown")
+            true_names_map[uid] = fname
+            
+        stalled_workflows = check_stalled_workflows(current_users, now, true_names_map)
+        
+        # Inject true names back into digest queue items
+        for item in digest_queue:
+            uid = item.get("user_id")
+            if uid and uid in true_names_map:
+                item["volunteer_name"] = true_names_map[uid]
         
         # Only send if there's actually something to report
         if digest_queue or stalled_workflows:
