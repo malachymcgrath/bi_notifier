@@ -113,15 +113,6 @@ def decrypt_data(encrypted_payload, password: str):
 
 # ── Dashboard Utilities ───────────────────────────────────────────────────────
 
-def anonymize_name(full_name):
-    """Obscure last name for privacy on public dashboards."""
-    if not full_name:
-        return "Unknown"
-    parts = full_name.split()
-    if len(parts) > 1:
-        return f"{parts[0]} {parts[-1][0]}."
-    return full_name
-
 def update_dashboard_json(state, now, api_ok, email_ok):
     new_apps = []
     awaiting_hr = []
@@ -293,7 +284,8 @@ def get_smtp_config():
 def send_email(subject, body):
     config = get_smtp_config()
     msg = MIMEMultipart()
-    msg["From"]    = "City of Kwinana Volunteer Centre <malachymcgrath286@gmail.com>"
+    # Use the SMTP username as the sending address to avoid spoofing rejections
+    msg["From"]    = f"Better Impact Notifier <{config['smtp_username']}>"
     msg["To"]      = config["notify_email"]
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "html"))
@@ -382,7 +374,7 @@ def send_daily_digest(digest_queue, stalled_workflows):
 
 # ── Stalled Workflows ─────────────────────────────────────────────────────────
 
-def check_stalled_workflows(users_state, now, true_names_map=None):
+def check_stalled_workflows(users_state, now):
     """
     Check for:
     1. Application Stalled: V1 submitted (>5 days ago), but no Interview Outcome.
@@ -391,8 +383,7 @@ def check_stalled_workflows(users_state, now, true_names_map=None):
     stalled = []
     
     for user_id, info in users_state.items():
-        base_name = info.get("name", "Unknown")
-        name = true_names_map.get(user_id, base_name) if true_names_map else base_name
+        name = info.get("name", "Unknown")
         fields = info.get("fields", {})
         
         reg_form = fields.get(REGISTRATION_FIELD_NAME, {})
@@ -468,12 +459,11 @@ def main():
             f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
             or user.get("name", f"Volunteer {user_id}")
         )
-        anon_name = anonymize_name(raw_name)
 
         if not user_id:
             continue
 
-        current_users[user_id] = {"name": anon_name, "fields": {}}
+        current_users[user_id] = {"name": raw_name, "fields": {}}
 
         for field_name in fields_to_monitor:
             current_value = extract_custom_field(user, field_name)
@@ -493,16 +483,16 @@ def main():
                     print(f"Change detected: {raw_name} — {field_name}: '{previous_value}' → '{current_value}'")
                     change_dict = {
                         "user_id": user_id,
-                        "volunteer_name": anon_name,
+                        "volunteer_name": raw_name,
                         "field_name": field_name,
                         "previous_value": previous_value,
                         "new_value": current_value,
                         "timestamp": new_updated_at
                     }
                     
-                    # Store stripped/anonymized version for dashboard
+                    # Store tracking version for dashboard
                     public_change = {
-                        "volunteer_name": anon_name,
+                        "volunteer_name": raw_name,
                         "field_name": field_name,
                         "old_value": previous_value if previous_value else "(empty)",
                         "new_value": current_value,
@@ -517,10 +507,7 @@ def main():
                         state["dashboard_activity"]["field_changes"] = state["dashboard_activity"]["field_changes"][:5]
                     
                     if field_name in IMMEDIATE_FIELDS and (not previous_value):
-                        immediate_changes.append({
-                            **change_dict,
-                            "volunteer_name": raw_name # Only use true name in volatile email queue
-                        })
+                        immediate_changes.append(change_dict)
                     else:
                         digest_queue.append(change_dict)
             else:
@@ -547,20 +534,7 @@ def main():
     if now.hour >= 8 and state.get("last_digest_date") != today_str:
         print("Evaluating stalled workflows and sending Daily Digest.")
         
-        # Hydrate true names mapping for digests
-        true_names_map = {}
-        for v in volunteers:
-            uid = str(v.get("user_id", ""))
-            fname = f"{v.get('first_name', '')} {v.get('last_name', '')}".strip() or v.get("name", "Unknown")
-            true_names_map[uid] = fname
-            
-        stalled_workflows = check_stalled_workflows(current_users, now, true_names_map)
-        
-        # Inject true names back into digest queue items
-        for item in digest_queue:
-            uid = item.get("user_id")
-            if uid and uid in true_names_map:
-                item["volunteer_name"] = true_names_map[uid]
+        stalled_workflows = check_stalled_workflows(current_users, now)
         
         # Only send if there's actually something to report
         if digest_queue or stalled_workflows:

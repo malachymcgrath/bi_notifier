@@ -2,9 +2,11 @@
 
 A complete automated notification system and public-facing (but encrypted) workflow dashboard for managing Kwinana volunteer applications via the Better Impact API.
 
+> **Non-Technical Staff:** If you are here to manage notifications, check the dashboard, or troubleshoot why emails aren't arriving, please click here to read the **[Staff User Guide](USER_GUIDE.md)** instead!
+
 ## Features
 
-- **Automated Polling:** Checks Better Impact every 30 minutes via GitHub Actions.
+- **Automated Polling:** Checks Better Impact every 30 minutes via GitHub Actions. *(Note: The frequency is set to 30 mins because GitHub Actions minutes are completely free while the repository is public. The repository must remain public in order to host the dashboard on GitHub Pages for free)*
 - **Immediate Alerts:** Sends an email to the supervisor immediately when a Registration Form is signed or an induction date is entered.
 - **Daily Digest:** Sends a consolidated email at 8:00 AM (AWST) outlining non-critical profile changes and flagging **Stalled Workflows** (e.g. pending HR inductions after passing an interview).
 - **Live Workflow Dashboard:** A slick frontend web dashboard hosted for free on GitHub Pages that displays the volunteer pipeline (New Applications, Awaiting HR, Awaiting Site Induction) along with recent activity lists.
@@ -56,7 +58,7 @@ To solve this:
 3. Passwords are saved temporarily via `sessionStorage` to allow page reloads without entering the password again.
 
 No plaintext PII (Personally Identifiable Information) touches the GitHub repository files. 
-
+    
 ---
 
 ## Monitored Fields
